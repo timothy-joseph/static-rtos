@@ -175,7 +175,7 @@ ksuspend_thread(uint8_t id)
 	KEND_CRITICAL();
 
 	/* TODO: heapify */
-	if (/* TODO: current task suspended */ && kscheduler_started && !KIS_CRITICAL())
+	if (/* TODO: current task suspended && */ kscheduler_started && !KIS_CRITICAL())
 		kyield();
 		
 
@@ -228,7 +228,7 @@ kunsuspend_thread(uint8_t id)
 	}
 	kqueue_suspended_end++;
 
-	if (/* TODO: higher priority task unsuspended */ && kscheduler_started && !KIS_CRITICAL())
+	if (/* TODO: higher priority task unsuspended  && */ kscheduler_started && !KIS_CRITICAL())
 		kyield();
 
 	KEND_CRITICAL();

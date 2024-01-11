@@ -25,3 +25,12 @@ The user must also provide either a standard library or basic implementations of
 stdint.h -> all int types
 stddef.h -> NULL
 string.h -> memset
+
+Functionality
+---
+
+1. Create thread with static memory allocation
+2. Suspend and resume thread execution
+3. Sleep function for a number of ticks
+4. Yield execution back to the scheduler
+5. Atomic blocks of code
