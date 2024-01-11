@@ -1,6 +1,3 @@
-#ifndef SCHEDULER_C
-#define SCHEDULER_C
-
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -17,9 +14,9 @@
  */
 
 /* functions only used in this translation unit */
-static void __swap_threads(struct kthread *a, struct kthread *b);
-static int __kthreads_cmp(const void *a, const void *b);
-static void __heapify(void);
+static void swap_threads(struct kthread *a, struct kthread *b);
+static int kthreads_cmp(const void *a, const void *b);
+static void heapify(void);
 
 static struct kthread *kqueue;
 static int16_t kqueue_size;
@@ -31,11 +28,12 @@ static uint8_t klast_id = 0;
 static struct kthread *kcurrent_thread = 0xff;	/* TODO: modify */
 static uint8_t kscheduler_started = 0;
 
-/* used to begin atomic sections of code
- * retuns 0 on success, 1 on failure
- *
- * implementations should take into consideration the nesting of multiple atomic
+/**
+ * Used to start atomic blocks of code.
+ * Implementations should take into consideration the nesting of multiple atomic
  * sections
+ *
+ * @return Retuns 0 on success, 1 on failure
  */
 uint8_t
 KBEGIN_CRITICAL(void)
@@ -43,11 +41,12 @@ KBEGIN_CRITICAL(void)
 	return PORT_BEGIN_CRITICAL();
 }
 
-/* used to end atomic sections of code
- * retuns 0 on success, 1 on failure
- *
- * implementations should take into consideration the nesting of multiple atomic
+/**
+ * Used to end atomic blocks of code.
+ * Implementations should take into consideration the nesting of multiple atomic
  * sections
+ *
+ * @return Retuns 0 on success, 1 on failure
  */
 uint8_t
 KEND_CRITICAL(void)
@@ -55,13 +54,14 @@ KEND_CRITICAL(void)
 	return PORT_END_CRITICAL();
 }
 
-/* the queue parameter should be a statically allocated array of the number of
- * threads you are going to use, and queue_size is supposed to be the number of
- * threads that you allocated memory for
+/**
+ * This should be first function you call when initializing the rtos. It is
+ * used to give the kernel the queue you have allocated for it.
  *
- * the function modifies static global variables
+ * @param queue Is a statically allocated array of kthreads
+ * @param queue_size Is the number of elements you have allocated for the array
  *
- * returns 1 when given a invalid size value; returns 0 on success
+ * @return returns 1 when given a invalid size value; returns 0 on success
  */
 uint8_t
 kprovide_queue_static(struct kthread *queue, int16_t queue_size)
@@ -76,12 +76,19 @@ kprovide_queue_static(struct kthread *queue, int16_t queue_size)
 	return 0;
 }
 
-/* used to create a new thread with statically allocated stack returns
- * a pointer to the thread structure on success * returns NULL on
- * failure
+/**
+ * Used to add a thread into the queue. The priority queue will be resorted
+ * after this function is called
  *
- * the returned pointer can be used with the ksuspend, kunsuspend,
- * ksend_notification, and ksend_notification_with_unsuspend functions
+ * @param func The function that handles the thread
+ * @param args The argument passed to the function by the kernel
+ * @param stack A statically allocated array that will be used as the stack
+ *		of the thread
+ * @param stack_size The number of elements allocated for the stack
+ * @param priority The priority number of the thread. Higher priorities will be
+ *		   executed first
+ *
+ * @return The id of the created thread or 0 if failed
  */
 uint8_t
 kcreate_thread_static(void (*func)(void *), void *args, void *stack,
@@ -111,20 +118,26 @@ kcreate_thread_static(void (*func)(void *), void *args, void *stack,
 	kqueue[kqueue_end].stack_size = stack_size;
 
 	/* TODO: context starting at func */
-	__heapify();
+	heapify();
 
  exit_label:
 	KEND_CRITICAL();
 	return return_id;
 }
 
-/* returns 1 on failure and 0 on success
- * if we aren't in a critical section when the function was called, then the
- * function context immedietly switches, otherwise, it will switch at the first
- * tick
+/**
+ * Used to put a thread in the suspended state. The priority queue will be
+ * resorted after this function is called.
+ * Function/thread context immedietly switches if this function isn't called
+ * within a atomic block of code, otherwise, it will switch at the first tick
  *
  * O(n) time
+ *
+ * @param id The id of the thread to suspend
+ *
+ * @return Returns 0 on success and 1 otherwise
  */
+/* TODO exit_label */
 uint8_t
 ksuspend_thread(uint8_t id)
 {
@@ -154,28 +167,34 @@ ksuspend_thread(uint8_t id)
 
 	kqueue_suspended_end--;
 	kqueue[i].state = SUSPENDED_STATE;
-	__swap_threads(&kqueue[i], &kqueue[kqueue_suspended_end]);
+	swap_threads(&kqueue[i], &kqueue[kqueue_suspended_end]);
 
 	if (kqueue_end != kqueue_suspended_end) {
 		for (; i < kqueue_end; i++) {
-			__swap_threads(&kqueue[i], &kqueue[i + 1]);
+			swap_threads(&kqueue[i], &kqueue[i + 1]);
 		}
 	}
 	kqueue_end--;
 
-	__heapify();
+	heapify();
 
 	KEND_CRITICAL();
 
 	return 0;
 }
 
-/* returns 1 on failure and 0 on success.
- * if a higher priority function was unsuspended and we aren't in a critical
- * section, then the context immedietly switches to that function. otherwise, it
- * will switch at the first tick
+/**
+ * Used to unsuspend a thread. The priority queue will be resorted after this
+ * function is called.
+ * If a higher priority thread is unsuspended, then the context will switch
+ * immediatly if we aren't in a s atomic block of code, otherwise it will
+ * switch at the first tick
  *
  * O(n) time
+ *
+ * @param id The id of the thread to suspend
+ *
+ * @return Returns 0 on success and 1 otherwise
  */
 uint8_t
 kunsuspend_thread(uint8_t id)
@@ -206,16 +225,16 @@ kunsuspend_thread(uint8_t id)
 	}
 	kqueue_end++;
 	kqueue[i].state = READY_STATE;
-	__swap_threads(&kqueue[i], &kqueue[kqueue_end]);
+	swap_threads(&kqueue[i], &kqueue[kqueue_end]);
 
 	if (kqueue_end != kqueue_suspended_end) {
 		for (; i > kqueue_suspended_end; i--) {
-			__swap_threads(&kqueue[i], &kqueue[i - 1]);
+			swap_threads(&kqueue[i], &kqueue[i - 1]);
 		}
 	}
 	kqueue_suspended_end++;
 
-	__heapify();
+	heapify();
 
 	KEND_CRITICAL();
 
@@ -226,7 +245,7 @@ kunsuspend_thread(uint8_t id)
  * kthread structs
  */
 static void
-__swap_threads(struct kthread *a, struct kthread *b)
+swap_threads(struct kthread *a, struct kthread *b)
 {
 	struct kthread tmp;
 
@@ -244,22 +263,25 @@ __swap_threads(struct kthread *a, struct kthread *b)
 	KEND_CRITICAL();
 }
 
-/* used to yield the context back to the scheduler
- * returns 0 on success and 1 on failure
+/**
+ * Used to yield the context back to the scheduler
+ * @return Returns 0 on success and 1 on failure
  */
 uint8_t
 kyield(void)
 {
 }
 
-/* the main function of the scheduler
- * it decides based on the priority queue which thread should run. the after the
+/**
+ * Call this to start scheduling threads. Until this function is called, the
+ * threads will not be executed.
+ * It decides based on the priority queue which thread should run. the after the
  * first scheduling, the priority queue will have on position 0 the running
  * thread and on positions 1...kqueue_end will  be the actual priority_queue. it
  * checks if a thread wake up due to a timer event the scheduler heapifies on
  * every tick. 
  *
- * this function should never return upon succesful execution and it should
+ * @return This function should never return upon succesful execution and it should
  * return 1 on failure
  */
 uint8_t
@@ -267,7 +289,8 @@ kscheduler(void)
 {
 }
 
-/* this function is the isr that increments the tick and also heapifies.
+/**
+ * this function is the isr that increments the tick and also heapifies.
  *
  * within your port, your timer isr should call this function and also reset the
  * count timer
@@ -277,11 +300,12 @@ kscheduler_tick_isr(void)
 {
 }
 
-/* a internal function of the scheduler module used to compare two thread's
+/**
+ * a internal function of the scheduler module used to compare two thread's
  * priority
  */
 static int
-__kthreads_cmp(const void *a, const void *b)
+kthreads_cmp(const void *a, const void *b)
 {
 	return ((struct kthread *)b)->priority -
 	    ((struct kthread *)a)->priority;
@@ -291,7 +315,7 @@ __kthreads_cmp(const void *a, const void *b)
  * scheduler hasn't started and between 1...kqueue_end on all other calls
  */
 static void
-__heapify(void)
+heapify(void)
 {
 	uint8_t start;
 
@@ -305,7 +329,7 @@ __heapify(void)
 
 	/* TODO: actual priority_queue */
 	qsort(kqueue + start, kqueue_end - start + 1, sizeof(struct kthread),
-	      __kthreads_cmp);
+	      kthreads_cmp);
 }
 
 /* TODO: remove */
@@ -329,5 +353,3 @@ print_id_suspended(void)
 		printf("%d ", kqueue[i].id);
 	printf("\n");
 }
-
-#endif
