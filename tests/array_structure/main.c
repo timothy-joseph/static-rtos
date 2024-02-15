@@ -1,4 +1,14 @@
+/* TODO: dynamic aging:
+ * 1. for threads with the same priority
+ * 2. for all threads
+ * for threads with the same priority: round robin
+ * configurable
+ *
+ * For threads with the same priority:
+ *	dynamic_priority++ if != current_thread
+ */
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 
 #define BASE_RR 0x3
@@ -12,7 +22,7 @@ enum kstatus_t {
 struct kthread_t {
 	int id;
 	uint8_t priority;
-	uint8_t rr_priority;
+	uint8_t dynamic_priority;
 	enum kstatus_t status;
 };
 
@@ -83,8 +93,6 @@ int kthread_start_scheduler(void);
  */
 int kyield(void);
 
-static void reset_round_robin_priority(void);
-
 static struct kthread_t *kthreads_arr; /**< The array in which information is
 					**< stored about the threads
 					*/
@@ -130,6 +138,9 @@ kthread_create_static(void (*func)(void *), void *args, void *stack,
 {
 	if (!func || !stack || !stack_size)
 		return 1;
+	
+	if (priority == 0 || priority == UINT8_MAX)
+		return 1;
 
 	if (kstarted_scheduler)
 		return 1;
@@ -139,7 +150,7 @@ kthread_create_static(void (*func)(void *), void *args, void *stack,
 
 	kthreads_arr[kthreads_arr_used_size].id = kthreads_arr_used_size + 1;
 	kthreads_arr[kthreads_arr_used_size].priority = priority;
-	kthreads_arr[kthreads_arr_used_size].rr_priority = BASE_RR;
+	kthreads_arr[kthreads_arr_used_size].dynamic_priority = 0;
 	kthreads_arr[kthreads_arr_used_size].status = READY;
 
 	kthreads_arr_used_size++;
@@ -169,7 +180,8 @@ kthread_suspend(int id)
 	
 	reset round robin priority
 #endif
-	reset_round_robin_priority();
+
+	return 0;
 }
 
 int
@@ -187,7 +199,8 @@ kthread_unsuspend(int id)
 	
 	reset round robin priority
 #endif
-	reset_round_robin_priority();
+
+	return 0;
 }
 
 /* TODO */
@@ -205,79 +218,135 @@ kyield(void)
 int
 get_next_id(void)
 {
-	size_t i, index; 
-	uint8_t max_priority = 0, max_rr_priority = 0;
+	size_t i, last_run_index, first_index;
+	uint8_t max_priority, set_last_run_index;
 
+	max_priority = 0;
+	set_last_run_index = 0;
 	for (i = 0; i < kthreads_arr_used_size; i++) {
 		if (kthreads_arr[i].status == SUSPENDED)
 			continue;
-
 		if (kthreads_arr[i].priority > max_priority) {
 			max_priority = kthreads_arr[i].priority;
-			max_rr_priority = kthreads_arr[i].rr_priority;
-			index = i;
+			first_index = i;
 		}
 		if (kthreads_arr[i].priority == max_priority &&
-		    kthreads_arr[i].rr_priority > max_rr_priority) {
-		    	max_rr_priority = kthreads_arr[i].rr_priority;
-			index = i;
+		    kthreads_arr[i].dynamic_priority) {
+			last_run_index = i;
+			set_last_run_index = 1;
 		}
 	}
 
 	if (!max_priority)
 		return -1;
 	
-	return index + 1;
+	if (!set_last_run_index)
+		return first_index + 1;
+	
+	for (i = last_run_index + 1; i < kthreads_arr_used_size; i++) {
+		if (kthreads_arr[i].status == SUSPENDED)
+			continue;
+		if (kthreads_arr[i].priority == max_priority)
+			return i + 1;
+	}
+
+	return first_index + 1;
 }
 
-static void
-reset_round_robin_priority(void)
+void
+make_0_last_run_for_priority(uint8_t priority)
 {
 	size_t i;
 
-	for (i = 0; i < kthreads_arr_used_size; i++)
-		kthreads_arr[i].rr_priority = BASE_RR;
+	for (i = 0; i < kthreads_arr_used_size; i++) {
+		if (kthreads_arr[i].priority == priority)
+			kthreads_arr[i].dynamic_priority = 0;
+	}
 }
 
-int
-main(void)
+/**
+ * Code that will not be copied to the kernel
+ */
+
+void
+print_kthreads_arr(void)
 {
-	int i, k;
+	size_t i;
+
+	printf("kthreads_arr:\n");
+	for (i = 0; i < kthreads_arr_allocated_size; i++) {
+		printf("%d %hhu %hhu %d\n", kthreads_arr[i].id,
+					    kthreads_arr[i].priority,
+					    kthreads_arr[i].dynamic_priority,
+					    kthreads_arr[i].status);
+	}
+	printf("\n");
+}
+
+void
+test(void)
+{
+	int n;
+	int i, k, type, id, old_id;
+	uint8_t priority;
 	static struct kthread_t kthreads_allocated[10];
 	struct kthread_t x;
 
 	kprovide_threads_array(kthreads_allocated, 10);
 
-	kthread_create_static(1, 1, 1, 1, 3);
-	kthread_create_static(1, 1, 1, 1, 2);
-	kthread_create_static(1, 1, 1, 1, 2);
-	kthread_create_static(1, 1, 1, 1, 1);
-	kthread_create_static(1, 1, 1, 1, 1);
+	scanf("%d\n", &n);
 
-	for (i = 0; i < 10; i++) {
-		x = kthreads_arr[i];
-
-		printf("%d %d %d\n", i, x.id, x.rr_priority);
-
-		if (x.rr_priority == 0)
-			reset_round_robin_priority();
+	if (n > 10) {
+		printf("Must make less than 10 threads\n");
+		exit(EXIT_FAILURE);
 	}
 
-	kthread_suspend(1);
-
-	k = 0;
-	while (k++ < 10) {
-		i = get_next_id() - 1;
-
-		printf("%d %d\n", kthreads_arr[i].id,
-				  kthreads_arr[i].rr_priority);
-		kthreads_arr[i].rr_priority--;
-
-
-		if (kthreads_arr[i].rr_priority == 0)
-			reset_round_robin_priority();
+	for (i = 0; i < n; i++) {
+		scanf("%hhu", &priority);
+		if (kthread_create_static(1, 1, 1, 1, priority) == -1) {
+			printf("Error while creating threads\n");
+			exit(EXIT_FAILURE);
+		}
 	}
 
+	scanf("%d\n", &n);
+	for (i = 0; i < n; i++) {
+		old_id = kcurrent_thread_id;
+		k = get_next_id();
+		/* put k into execution */
+		kcurrent_thread_id = k;
+
+		/* mark that it was run recently */
+		if (old_id > 0)
+			make_0_last_run_for_priority(
+				kthreads_arr[old_id - 1].priority);
+		if (kcurrent_thread_id > 0)
+			kthreads_arr[kcurrent_thread_id - 1].dynamic_priority = 1;
+
+		printf("%d\n", k);
+		scanf("%d %d\n", &type, &id);
+
+		if (type == SUSPENDED) {
+			if (kthread_suspend(id)) {
+				printf("kthread_suspend returned an error\n");
+			}
+		}
+		if (type == READY) {
+			if (kthread_unsuspend(id)) {
+				printf("kthread_unsuspend returned an error\n");
+			}
+		}
+	}
+
+	k = get_next_id();
+	printf("%d\n", k);
+}
+
+int
+main(void)
+{
+
+	test();
 	return 0;
 }
 
