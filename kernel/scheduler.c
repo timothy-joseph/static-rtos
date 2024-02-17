@@ -8,24 +8,16 @@
 #include "portable/portable.h"
 
 /* TODO:
- * priority queue implementation
- * kerrno
- * KIS_CRITICAL
  */
 
 /* functions only used in this translation unit */
-static void swap_threads(struct kthread *a, struct kthread *b);
-static int kthreads_cmp(const void *a, const void *b);
-static void heapify(void);
+static int kthreads_cmp_priority(const void *a, const void *b);
 
-static struct kthread *kqueue;
-static int16_t kqueue_size;
-/* the end of the ready threads, grows towards the right */
-static int16_t kqueue_end;
-/* the end of the suspended threads, grows towards the left */
-static int16_t kqueue_suspended_end;
-static uint8_t klast_id = 0;
-static struct kthread *kcurrent_thread = 0xff;	/* TODO: modify */
+static struct kthread_t *kthreads_array;
+static size_t karr_size;
+static size_t karr_used_size;
+
+static struct kthread_t *kcurrent_thread = 0xff;	/* TODO: modify */
 static uint8_t kscheduler_started = 0;
 
 /**
@@ -64,16 +56,8 @@ KEND_CRITICAL(void)
  * @return returns 1 when given a invalid size value; returns 0 on success
  */
 uint8_t
-kprovide_queue_static(struct kthread *queue, int16_t queue_size)
+kprovide_queue_static(struct kthread_t *queue, int16_t queue_size)
 {
-	if (queue_size < 0 || queue_size > 255)
-		return 1;
-	kqueue = queue;
-	kqueue_size = queue_size;
-	kqueue_end = -1;
-	kqueue_suspended_end = queue_size;
-	memset(kqueue, 0, queue_size * sizeof(*kqueue));
-	return 0;
 }
 
 /**
@@ -94,35 +78,6 @@ uint8_t
 kcreate_thread_static(void (*func)(void *), void *args, void *stack,
 		      size_t stack_size, uint8_t priority)
 {
-	uint8_t return_id = 0;
-
-	KBEGIN_CRITICAL();
-
-	if (kqueue == NULL || kqueue_size == 0)
-		goto exit_label;
-	if (kqueue_end + 1 >= kqueue_size ||
-	    kqueue_end + 1 >= kqueue_suspended_end)
-		goto exit_label;
-	if (klast_id == 0xff)
-		goto exit_label;
-
-	kqueue_end++;
-	klast_id++;
-	return_id = klast_id;
-
-	kqueue[kqueue_end].id = klast_id;
-	kqueue[kqueue_end].state = READY_STATE;
-	kqueue[kqueue_end].priority = priority;
-	kqueue[kqueue_end].notifications = 0;
-	kqueue[kqueue_end].stack = stack;
-	kqueue[kqueue_end].stack_size = stack_size;
-
-	/* TODO: context starting at func */
-	heapify();
-
- exit_label:
-	KEND_CRITICAL();
-	return return_id;
 }
 
 /**
@@ -137,50 +92,9 @@ kcreate_thread_static(void (*func)(void *), void *args, void *stack,
  *
  * @return Returns 0 on success and 1 otherwise
  */
-/* TODO exit_label */
 uint8_t
 ksuspend_thread(uint8_t id)
 {
-	uint8_t i;
-
-	KBEGIN_CRITICAL();
-
-	if (kqueue == NULL || kqueue_size == 0 || kcurrent_thread == NULL) {
-		KEND_CRITICAL();
-		return 1;
-	}
-	if (kqueue_end == -1 || kqueue_suspended_end - 1 < 0) {
-		KEND_CRITICAL();
-		return 1;
-	}
-
-	if (id == 0)
-		id = kcurrent_thread->id;
-	for (i = 0; i <= kqueue_end; i++) {
-		if (kqueue[i].id == id)
-			break;
-	}
-	if (i > kqueue_end) {
-		KEND_CRITICAL();
-		return 1;
-	}
-
-	kqueue_suspended_end--;
-	kqueue[i].state = SUSPENDED_STATE;
-	swap_threads(&kqueue[i], &kqueue[kqueue_suspended_end]);
-
-	if (kqueue_end != kqueue_suspended_end) {
-		for (; i < kqueue_end; i++) {
-			swap_threads(&kqueue[i], &kqueue[i + 1]);
-		}
-	}
-	kqueue_end--;
-
-	heapify();
-
-	KEND_CRITICAL();
-
-	return 0;
 }
 
 /**
@@ -199,73 +113,12 @@ ksuspend_thread(uint8_t id)
 uint8_t
 kunsuspend_thread(uint8_t id)
 {
-	uint8_t i;
-
-	KBEGIN_CRITICAL();
-
-	if (kqueue == NULL || kqueue_size == 0 || kcurrent_thread == NULL) {
-		KEND_CRITICAL();
-		return 1;
-	}
-	if (kqueue_suspended_end == kqueue_size ||
-	    kqueue_end + 1 >= kqueue_size) {
-		KEND_CRITICAL();
-		return 1;
-	}
-
-	if (id == 0)
-		id = kcurrent_thread->id;
-	for (i = kqueue_suspended_end; i < kqueue_size; i++) {
-		if (kqueue[i].id == id)
-			break;
-	}
-	if (i >= kqueue_size) {
-		KEND_CRITICAL();
-		return 1;
-	}
-	kqueue_end++;
-	kqueue[i].state = READY_STATE;
-	swap_threads(&kqueue[i], &kqueue[kqueue_end]);
-
-	if (kqueue_end != kqueue_suspended_end) {
-		for (; i > kqueue_suspended_end; i--) {
-			swap_threads(&kqueue[i], &kqueue[i - 1]);
-		}
-	}
-	kqueue_suspended_end++;
-
-	heapify();
-
-	KEND_CRITICAL();
-
-	return 0;
 }
 
-/* a internal function of the scheduler module used to more easily swap two
- * kthread structs
- */
-static void
-swap_threads(struct kthread *a, struct kthread *b)
-{
-	struct kthread tmp;
-
-	KBEGIN_CRITICAL();
-
-	if (a == NULL || b == NULL) {
-		KEND_CRITICAL();
-		return;
-	}
-
-	tmp = *a;
-	*a = *b;
-	*b = tmp;
-
-	KEND_CRITICAL();
-}
 
 /**
  * Used to yield the context back to the scheduler
- * @return Returns 0 on success and 1 on failure
+ * @return returns 0 on success and 1 on failure
  */
 uint8_t
 kyield(void)
@@ -307,29 +160,8 @@ kscheduler_tick_isr(void)
 static int
 kthreads_cmp(const void *a, const void *b)
 {
-	return ((struct kthread *)b)->priority -
-	    ((struct kthread *)a)->priority;
-}
-
-/* heapifies the priority queue between 0...kqueue_end on if the
- * scheduler hasn't started and between 1...kqueue_end on all other calls
- */
-static void
-heapify(void)
-{
-	uint8_t start;
-
-	if (kqueue == NULL || kqueue_end <= -1)
-		return;
-
-	if (!kscheduler_started)
-		start = 0;
-	else
-		start = 1;
-
-	/* TODO: actual priority_queue */
-	qsort(kqueue + start, kqueue_end - start + 1, sizeof(struct kthread),
-	      kthreads_cmp);
+	return ((struct kthread_t *)b)->priority -
+	    ((struct kthread_t *)a)->priority;
 }
 
 /* TODO: remove */

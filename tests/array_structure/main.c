@@ -215,55 +215,6 @@ kyield(void)
 {
 }
 
-int
-get_next_id(void)
-{
-	size_t i, last_run_index, first_index;
-	uint8_t max_priority, set_last_run_index;
-
-	max_priority = 0;
-	set_last_run_index = 0;
-	for (i = 0; i < kthreads_arr_used_size; i++) {
-		if (kthreads_arr[i].status == SUSPENDED)
-			continue;
-		if (kthreads_arr[i].priority > max_priority) {
-			max_priority = kthreads_arr[i].priority;
-			first_index = i;
-		}
-		if (kthreads_arr[i].priority == max_priority &&
-		    kthreads_arr[i].dynamic_priority) {
-			last_run_index = i;
-			set_last_run_index = 1;
-		}
-	}
-
-	if (!max_priority)
-		return -1;
-	
-	if (!set_last_run_index)
-		return first_index + 1;
-	
-	for (i = last_run_index + 1; i < kthreads_arr_used_size; i++) {
-		if (kthreads_arr[i].status == SUSPENDED)
-			continue;
-		if (kthreads_arr[i].priority == max_priority)
-			return i + 1;
-	}
-
-	return first_index + 1;
-}
-
-void
-make_0_last_run_for_priority(uint8_t priority)
-{
-	size_t i;
-
-	for (i = 0; i < kthreads_arr_used_size; i++) {
-		if (kthreads_arr[i].priority == priority)
-			kthreads_arr[i].dynamic_priority = 0;
-	}
-}
-
 /**
  * Code that will not be copied to the kernel
  */

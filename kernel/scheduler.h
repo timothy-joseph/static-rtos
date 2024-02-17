@@ -20,8 +20,8 @@ enum THREAD_STATES {
  * name
  */
 /* up to 255 threads due to the id being represented on 8 bits */
-struct kthread {
-	struct mcu_context thread_context;
+struct kthread_t {
+	struct mcu_context_t thread_context;
 	uint32_t notifications;
 	void *stack;
 	size_t stack_size;
@@ -37,10 +37,8 @@ uint8_t KBEGIN_CRITICAL(void);
 uint8_t KEXIT_CRITICAL(void);
 /* TODO */
 uint8_t KIS_CRITICAL(void);
-/* queue size is int16_t, because we can have at max 255 threads due to the id
- * limitation i set. it's represented on 16 bits instead of 8
- */
-uint8_t kprovide_queue_static(struct kthread *queue, int16_t queue_size);
+
+uint8_t kprovide_threads_array_static(struct kthread_t *arr, size_t arr_size);
 uint8_t kcreate_thread_static(void (*func)(void *), void *args, void *stack,
 			      size_t stack_size, uint8_t priority);
 uint8_t ksuspend_thread(uint8_t id);

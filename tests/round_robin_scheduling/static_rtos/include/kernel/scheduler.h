@@ -15,6 +15,7 @@ enum kstatus_t {
 struct kthread_t {
 	int id;
 	uint8_t priority;
+	uint8_t last_run;
 	enum kstatus_t status;
 	void (*func)();
 	void *args;
