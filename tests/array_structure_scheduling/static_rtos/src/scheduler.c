@@ -54,16 +54,16 @@ kthread_create_static(void (*func)(void *), void *args, void *stack,
 		      size_t stack_size, uint8_t priority)
 {
 	if (!func || !stack || !stack_size)
-		return 1;
+		return -1;
 	
 	if (priority == 0 || priority == UINT8_MAX)
-		return 1;
+		return -1;
 
 	if (kstarted_scheduler)
-		return 1;
+		return -1;
 
 	if (kthreads_arr_used_size >= kthreads_arr_allocated_size)
-		return 1;
+		return -1;
 
 	kthreads_arr[kthreads_arr_used_size].id = kthreads_arr_used_size + 1;
 	kthreads_arr[kthreads_arr_used_size].priority = priority;
@@ -76,7 +76,7 @@ kthread_create_static(void (*func)(void *), void *args, void *stack,
 
 	kthreads_arr_used_size++;
 
-	return 0;
+	return kthreads_arr_used_size;
 }
 
 int
@@ -202,6 +202,7 @@ get_next_id(void)
 
 	max_priority = 0;
 	set_last_run_index = 0;
+	first_index = 0;
 	for (i = 0; i < kthreads_arr_used_size; i++) {
 		if (kthreads_arr[i].status == SUSPENDED)
 			continue;

@@ -1,12 +1,3 @@
-/* TODO: dynamic aging:
- * 1. for threads with the same priority
- * 2. for all threads
- * for threads with the same priority: round robin
- * configurable
- *
- * For threads with the same priority:
- *	dynamic_priority++ if != current_thread
- */
 #include <stdio.h>
 #include <stdint.h>
 #include <kernel/scheduler.h>
@@ -40,8 +31,8 @@ int
 main(void)
 {
 	static struct kthread_t threads[2];
-	static uint8_t thread1_stack[16384];
-	static uint8_t thread2_stack[16384];
+	static uint8_t thread1_stack[13680];
+	static uint8_t thread2_stack[13680];
 
 	if (kprovide_threads_array(threads, 2))
 		printf("threads array problem\n");
