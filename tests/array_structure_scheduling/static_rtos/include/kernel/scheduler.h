@@ -20,8 +20,10 @@ struct kthread_t {
 	void *stack;
 	enum kstatus_t status;
 	int id;
+	uint16_t wake_up_at;
 	uint8_t priority;
 	uint8_t last_run;
+	uint8_t wake_scheduled;
 };
 
 /**
@@ -35,6 +37,16 @@ struct kthread_t {
  * @returns Returns 0 on success and 1 on failure. Sets kerrno appropriatly
  */
 int kprovide_threads_array(struct kthread_t *arr, size_t arr_size);
+
+/**
+ * With this function, the user will provide the stack for the idle thread
+ *
+ * @param stack The allocated stack
+ * @param stack_size The size of the allocated stack
+ *
+ * @returns Returns 0 on success and 1 on failure. Sets kerrno appropriatly
+ */
+int kprovide_idle_thread_stack(void *stack, size_t stack_size);
 
 /**
  * Function used to put a thread on the threads array. Must be called before
@@ -90,6 +102,34 @@ int kscheduler_start(void);
  * @returns Returns 0 on success and 1 on failure.
  */
 int kyield(void);
+
+/**
+ * This function enables interrupts for the processor and then enables the timer
+ * interrupt that handles ticks. Ports must define a function called
+ * port_enable_tick_interrupt that does this exact same thing and returns the
+ * same
+ *
+ * @returns Returns 0 on success and 1 on failure
+ */
+int kenable_tick_interrupt(void);
+
+/**
+ * This function suspends the current thread and schedules it to become ready
+ * after a certain period
+ *
+ * @param ticks_count The amount of ticks to sleep for
+ *
+ * @returns Returns 0 on success and 1 otherwise
+ */
+int ksleep_for_ticks(uint16_t ticks_count);
+
+/**
+ * This function is used to increase the tick count. If the tick count increase
+ * reached a wake-up value, then it readies the specific threads
+ *
+ * @returns Returns 1 if a new thread is readied and 0 otherwise
+ */
+int kincrease_tickcount(void);
 
 #endif /* #ifndef STATIC_RTOS_SCHEDULER_H */
 

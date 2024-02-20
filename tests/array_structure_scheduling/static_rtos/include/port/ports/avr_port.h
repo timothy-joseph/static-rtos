@@ -32,13 +32,8 @@ typedef struct avr_context_t_ {
 } avr_context_t;
 
 typedef void (*avr_context_func_t)(void *);
-
 typedef struct avr_context_t_ mcu_context_t;
 
-int avr_getcontext(avr_context_t *cp);
-int avr_setcontext(const avr_context_t *cp);
-int avr_swapcontext(avr_context_t *oucp, const avr_context_t *ucp);
-int avr_makecontext(avr_context_t *cp, void *stackp, const size_t stack_size, const avr_context_t *successor_cp, void (*funcp)(void *), void *funcargp);
 
 #ifdef __cplusplus
 extern "C" {
@@ -386,10 +381,23 @@ work.
 
 #endif /* __AVR__ */
 
+int avr_getcontext(avr_context_t *cp);
+int avr_setcontext(const avr_context_t *cp);
+int avr_swapcontext(avr_context_t *oucp, const avr_context_t *ucp);
+int avr_makecontext(avr_context_t *cp, void *stackp, const size_t stack_size, const avr_context_t *successor_cp, void (*funcp)(void *), void *funcargp);
+
+/* code written by timothy-joseph */
 #define port_getcontext avr_getcontext
 #define port_setcontext avr_setcontext
 #define port_swapcontext avr_swapcontext
 #define port_makecontext avr_makecontext
+
+int port_enable_tick_interrupt(void);
+
+#define F_CPU 16000000
+#define TCNT1_1S (65535 - (F_CPU / 1024))
+#define TCNT1_1MS (65535 - (F_CPU / 1024000))
+
 
 #endif /* AVRCONTEXT_H */
 

@@ -17,6 +17,8 @@ In general, you should include it only once across the project.
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <avr/io.h>
+#include <avr/interrupt.h>
 #include <port/port.h>
 
 #ifdef __AVR__
@@ -116,4 +118,23 @@ inline void avr_context_sanity_checks(void)
 #endif /* __AVR__ */
 
 #endif /* AVRCONTEXT_IMPL_H */
+
+/* Code written by Timothy Joseph */
+
+int
+port_enable_tick_interrupt(void)
+{
+	/* enable timer1 */
+	PRR &= ~(1 << PRTIM1);
+	/* enable prescaler to 1024 */
+	TCCR1B = 0b101;
+	/* enable overflow interrupt */
+	TIMSK1 |= 1 << TOIE1;
+	/* set the defualt value */
+	TCNT1 = TCNT1_1MS;
+	/* enable interrupts */
+	sei();
+
+	return 0;
+}
 

@@ -26,3 +26,4 @@ port_makecontext(mcu_context_t *ucp, void *stack, size_t stack_size,
 }
 
 #endif /* #ifndef STATIC_RTOS_LINUX_PORT_H */
+
