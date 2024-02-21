@@ -1,4 +1,5 @@
 /*
+ * TODO: blocked state
  * Idea about switching context in a ISR: port dependendant
  *	-> put another return address
  *
@@ -159,6 +160,8 @@ kscheduler_start(void)
 	if (kmake_context_for_all_threads())
 		return 1;
 	
+	PORT_DISABLE_INTERRUPTS();
+
 	kstarted_scheduler = 1;
 	while (1) {
 		i = get_next_id();
@@ -199,6 +202,9 @@ kenable_tick_interrupt(void)
 int
 ksleep_for_ticks(uint16_t ticks_count)
 {
+	/* TODO: BEGIN_ATOMIC */
+	PORT_DISABLE_INTERRUPTS();
+
 	int id, ret;
 	if (!kstarted_scheduler /* || KIS_CRITICAL() */)
 		return 1;
@@ -207,12 +213,19 @@ ksleep_for_ticks(uint16_t ticks_count)
 	if (id <= 0)
 		return 1;
 	
+#if 0
+	if (UINT16_MAX - 
+#endif
+
 	kthreads_arr[id - 1].wake_scheduled = 1;
 	kthreads_arr[id - 1].wake_up_at = ktickcount + ticks_count;
 
 	ret = kthread_suspend(id);
 
 	kthreads_arr[id - 1].wake_scheduled = 0;
+
+	PORT_ENABLE_INTERRUPTS();
+	/* TODO: END_ATOMIC */
 
 	return ret;
 }
@@ -227,10 +240,18 @@ kincrease_tickcount(void)
 		return 0;
 	
 	ktickcount++;
+	
+	if (ktickcount == 0) {
+			for (i = 0; i < kthreads_arr_used_size; i++) {
+				if (kthreads_arr[i].wake_scheduled != 2)
+					continue;
+			kthreads_arr[i].wake_scheduled = 1;
+		}
+	}
 
 	ret = 0;
 	for (i = 0; i < kthreads_arr_used_size; i++) {
-		if (!kthreads_arr[i].wake_scheduled)
+		if (kthreads_arr[i].wake_scheduled != 1)
 			continue;
 		if (kthreads_arr[i].wake_up_at <= ktickcount) {
 			kthread_unsuspend(kthreads_arr[i].id);
@@ -362,6 +383,7 @@ idle_thread(void *args)
 {
 	(void)args;
 
+	PORT_ENABLE_INTERRUPTS();
 	while (1) {
 	}
 }

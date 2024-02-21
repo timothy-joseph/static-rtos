@@ -20,7 +20,8 @@ led_on_thread(void *args)
 	(void)args;
 
 	while (1) {
-		printf("led_on_thread\n");
+		//printf("led_on_thread\n");
+		//putchar('1');
 		SET(PORTB, PORTB5);
 		if (ksleep_for_ticks(500)) {
 			printf("sleep problem\n");
@@ -34,7 +35,8 @@ led_off_thread(void *args)
 	(void)args;
 
 	while (1) {
-		printf("led_off_thread\n");
+		//printf("led_off_thread\n");
+		//putchar('2');
 		UNSET(PORTB, PORTB5);
 		if (ksleep_for_ticks(700)) {
 			printf("sleep problem\n");
@@ -46,9 +48,9 @@ int
 main(void)
 {
 	static struct kthread_t threads[2];
-	static uint8_t idle_thread_stack[100];
-	static uint8_t led_on_thread_stack[100];
-	static uint8_t led_off_thread_stack[100];
+	static uint8_t idle_thread_stack[512];
+	static uint8_t led_on_thread_stack[512];
+	static uint8_t led_off_thread_stack[512];
 
 	start_serial(9600);
 	printf("starting\n");

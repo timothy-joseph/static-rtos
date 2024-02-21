@@ -396,7 +396,12 @@ int port_enable_tick_interrupt(void);
 
 #define F_CPU 16000000
 #define TCNT1_1S (65535 - (F_CPU / 1024))
-#define TCNT1_1MS (65535 - (F_CPU / 1024000))
+#define TCNT1_1MS (65535 - (F_CPU / 10240000))
+
+#include <avr/interrupt.h>
+
+#define PORT_DISABLE_INTERRUPTS cli
+#define PORT_ENABLE_INTERRUPTS sei
 
 
 #endif /* AVRCONTEXT_H */
