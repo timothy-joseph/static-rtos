@@ -1,3 +1,28 @@
+/*
+ * Copyright 2024 Timothy Joseph. Subject to MIT license
+ * See LICENSE.txt for details
+ */
+
+/**
+ * Usage of the scheduler
+ * 
+ * In order to use the rtos, the user must follow these steps:
+ * 
+ * 1. Statically allocate space for the idle thread stack
+ * 2. Call the function `kprovide_idle_thread_stack` in order to give the scheduler
+ * the address of the idle thread stack
+ * 3. Statically allocate space for the array of threads
+ * 4. Call the function `kprovide_threads_array` in order to give the scheduler
+ * the address of the threads array.\
+ * For each thread:
+ * 	5. Statically allocate the stack for a thread
+ * 	6. Call the function `kthread_create_static` to place the new thread on the
+ * array.\
+ * Afterwards
+ * 7. Call `kenable_tick_interrupt` if the user wants to use ticks
+ * 8. Call `kscheduler_start` in order to start the scheduler.
+ */
+
 #ifndef STATIC_RTOS_SCHEDULER_H
 #define STATIC_RTOS_SCHEDULER_H
 
@@ -130,6 +155,13 @@ int ksleep_for_ticks(uint16_t ticks_count);
  * @returns Returns 1 if a new thread is readied and 0 otherwise
  */
 int kincrease_tickcount(void);
+
+/* TODO */
+int kernel_enable_tick_interrupt(void);
+int KERNEL_ARE_INTERRUPTS_ENABLED(void);
+int KERNEL_BEGIN_ATOMIC(void);
+int KERNEL_END_ATOMIC(void);
+int KERNEL_IS_ATOMIC(void);
 
 #endif /* #ifndef STATIC_RTOS_SCHEDULER_H */
 

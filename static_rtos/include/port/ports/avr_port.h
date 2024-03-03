@@ -1,9 +1,33 @@
+/* Some of the contents of this file are written by and released under the
+ * MIT license by another author. Other parts of the contents are written by
+ * Timothy Joseph and released under the MIT license
+ */
 /*
-  Author: Artem Boldariev <artem@boldariev.com>
-  The software distributed under the terms of the MIT/Expat license.
-
-  See LICENSE.txt for license details.
-  TODO: redo this
+  (Original) Author: Artem Boldariev <artem@boldariev.com>
+  Modified by: Timothy Joseph
+  Link to the original: https://github.com/arbv/avr-context
+  License text (doesn't apply to the whole file)
+  MIT/Expat License
+  
+  Copyright (c) 2020 Artem Boldariev <artem@boldariev.com>
+  
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+  
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+  
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
 */
 
 #ifndef AVRCONTEXT_H
@@ -382,22 +406,11 @@ work.
 
 #endif /* __AVR__ */
 
-int avr_getcontext(avr_context_t *cp);
-int avr_setcontext(const avr_context_t *cp);
-int avr_swapcontext(avr_context_t *oucp, const avr_context_t *ucp);
-int avr_makecontext(avr_context_t *cp, void *stackp, const size_t stack_size, const avr_context_t *successor_cp, void (*funcp)(void *), void *funcargp);
-
-/* code written by timothy-joseph */
-#define port_getcontext avr_getcontext
-#define port_setcontext avr_setcontext
-#define port_swapcontext avr_swapcontext
-#define port_makecontext avr_makecontext
-
-int port_enable_tick_interrupt(void);
-int PORT_ARE_INTERRUPTS_ENABLED(void);
-int PORT_BEGIN_ATOMIC(void);
-int PORT_END_ATOMIC(void);
-int PORT_IS_ATOMIC(void);
+/* Above this comment, the code is released under the MIT license and mostly
+ * written by the mentioned author. Below the code is written by Timothy Joseph
+ * and released under the MIT license. See LICENSE.txt under the root directory
+ * of the project for the license text
+ */
 
 #define F_CPU 16000000
 #define TCNT1_1S (65535 - (F_CPU / 1024))

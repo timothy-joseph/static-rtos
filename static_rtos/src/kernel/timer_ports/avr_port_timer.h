@@ -1,3 +1,7 @@
+/*
+ * Copyright 2024 Timothy Joseph. Subject to MIT license
+ * See LICENSE.txt for details
+ */
 #ifndef AVR_PORT_TIMER_H
 #define AVR_PORT_TIMER_H
 

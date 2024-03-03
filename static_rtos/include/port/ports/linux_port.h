@@ -1,3 +1,7 @@
+/*
+ * Copyright 2024 Timothy Joseph. Subject to MIT license
+ * See LICENSE.txt for details
+ */
 #ifndef STATIC_RTOS_LINUX_PORT_H
 
 #include <ucontext.h>

@@ -1,8 +1,33 @@
+/* Some of the contents of this file are written by and released under the
+ * MIT license by another author. Other parts of the contents are written by
+ * Timothy Joseph and released under the MIT license
+ */
 /*
-  Author: Artem Boldariev <artem@boldariev.com>
-  The software distributed under the terms of the MIT/Expat license.
-
-  See LICENSE.txt for license details.
+  (Original) Author: Artem Boldariev <artem@boldariev.com>
+  Modified by: Timothy Joseph
+  Link to the original: https://github.com/arbv/avr-context
+  License text (doesn't apply to the whole file)
+  MIT/Expat License
+  
+  Copyright (c) 2020 Artem Boldariev <artem@boldariev.com>
+  
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+  
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+  
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
 */
 
 /*
@@ -23,7 +48,7 @@ In general, you should include it only once across the project.
 
 #ifdef __AVR__
 
-__attribute__ ((naked)) int avr_getcontext(avr_context_t *cp)
+__attribute__ ((naked)) int port_getcontext(mcu_context_t *cp)
 {
     (void)cp; /* to avoid compiler warnings */
     AVR_SAVE_CONTEXT(
@@ -35,7 +60,7 @@ __attribute__ ((naked)) int avr_getcontext(avr_context_t *cp)
     __asm__ __volatile__ ("ret\n");
 }
 
-__attribute__ ((naked)) int avr_setcontext(const avr_context_t *cp)
+__attribute__ ((naked)) int port_setcontext(const mcu_context_t *cp)
 {
     (void)cp; /* to avoid compiler warnings */
     AVR_RESTORE_CONTEXT(
@@ -47,7 +72,7 @@ __attribute__ ((naked)) int avr_setcontext(const avr_context_t *cp)
 }
 
 
-__attribute__ ((naked)) int avr_swapcontext(avr_context_t *oucp, const avr_context_t *ucp)
+__attribute__ ((naked)) int port_swapcontext(mcu_context_t *oucp, const mcu_context_t *ucp)
 {
     (void)oucp; /* to avoid compiler warnings */
     (void)ucp;
@@ -66,24 +91,24 @@ __attribute__ ((naked)) int avr_swapcontext(avr_context_t *oucp, const avr_conte
 #ifdef __cplusplus
 extern "C" {
 #endif /*__cplusplus **/
-static void avr_makecontext_callfunc(const avr_context_t *successor, void (*func)(void *), void *funcarg);
+static void port_makecontext_callfunc(const mcu_context_t *successor, void (*func)(void *), void *funcarg);
 #ifdef __cplusplus
 }
 #endif /*__cplusplus */
-static void avr_makecontext_callfunc(const avr_context_t *successor, void (*func)(void *), void *funcarg)
+static void port_makecontext_callfunc(const mcu_context_t *successor, void (*func)(void *), void *funcarg)
 {
     func(funcarg);
-    avr_setcontext(successor);
+    port_setcontext(successor);
 }
 
-int avr_makecontext(avr_context_t *cp, void *stackp, const size_t stack_size, const avr_context_t *successor_cp, void (*funcp)(void *), void *funcargp)
+int port_makecontext(mcu_context_t *cp, void *stackp, const size_t stack_size, const mcu_context_t *successor_cp, void (*funcp)(void *), void *funcargp)
 {
     uint16_t addr;
     uint8_t *p = (uint8_t *)&addr;
     /* initialise stack pointer and program counter */
     cp->sp.ptr = ((uint8_t *)stackp + stack_size - 1);
-    cp->pc.ptr = avr_makecontext_callfunc;
-    /* initialise registers to pass arguments to avr_makecontext_callfunc */
+    cp->pc.ptr = port_makecontext_callfunc;
+    /* initialise registers to pass arguments to port_makecontext_callfunc */
     /* successor: registers 24,25; func registers 23, 22; funcarg: 21, 20. */
     addr = (uint16_t)successor_cp;
     cp->r[24] = p[0];
@@ -104,9 +129,9 @@ See bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=49171
 */
 inline void avr_context_sanity_checks(void)
 {
-    avr_context_t test;
+    mcu_context_t test;
     static_assert(reinterpret_cast<uintptr_t>(&test) == reinterpret_cast<uintptr_t>(&test.sreg));
-    static_assert(sizeof(avr_context_t) == 37);
+    static_assert(sizeof(mcu_context_t) == 37);
     static_assert(reinterpret_cast<uintptr_t>(&test.sp.part.low) - reinterpret_cast<uintptr_t>(&test) == AVR_CONTEXT_OFFSET_SP_L);
     static_assert(reinterpret_cast<uintptr_t>(&test.sp.part.high) - reinterpret_cast<uintptr_t>(&test) == AVR_CONTEXT_OFFSET_SP_H);
     static_assert(reinterpret_cast<uintptr_t>(&test.pc.part.low) - reinterpret_cast<uintptr_t>(&test) == AVR_CONTEXT_OFFSET_PC_L);
@@ -119,7 +144,11 @@ inline void avr_context_sanity_checks(void)
 
 #endif /* AVRCONTEXT_IMPL_H */
 
-/* Code written by Timothy Joseph */
+/* Above this comment, the code is released under the MIT license and mostly
+ * written by the mentioned author. Below the code is written by Timothy Joseph
+ * and released under the MIT license. See LICENSE.txt under the root directory
+ * of the project for the license text
+ */
 
 static uint8_t nested_atomic;
 static uint8_t were_interrupts_enabled;

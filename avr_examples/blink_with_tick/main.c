@@ -1,4 +1,5 @@
 /* PORTB5 is led built in */
+/* TODO: No port functions easily accesible to the user */
 #include <stdio.h>
 #include <stdint.h>
 #include <avr/io.h>
@@ -20,8 +21,9 @@ led_on_thread(void *args)
 	(void)args;
 
 	while (1) {
-		//printf("led_on_thread\n");
-		//putchar('1');
+		PORT_BEGIN_ATOMIC();
+		printf("led_on_thread\n");
+		PORT_END_ATOMIC();
 		SET(PORTB, PORTB5);
 		if (ksleep_for_ticks(500)) {
 			printf("sleep problem\n");
@@ -35,8 +37,9 @@ led_off_thread(void *args)
 	(void)args;
 
 	while (1) {
-		//printf("led_off_thread\n");
-		//putchar('2');
+		PORT_BEGIN_ATOMIC();
+		printf("led_off_thread\n");
+		PORT_END_ATOMIC();
 		UNSET(PORTB, PORTB5);
 		if (ksleep_for_ticks(700)) {
 			printf("sleep problem\n");

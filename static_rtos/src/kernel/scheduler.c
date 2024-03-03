@@ -1,4 +1,8 @@
 /*
+ * Copyright 2024 Timothy Joseph. Subject to MIT license
+ * See LICENSE.txt for details
+ */
+/*
  * TODO: blocked state
  * Idea about switching context in a ISR: port dependendant
  *	-> put another return address
@@ -397,5 +401,5 @@ idle_thread(void *args)
 
 /* Timer interrupts is port defined */
 
-#include <port/port_timer.h>
+#include "port_timer.h"
 
