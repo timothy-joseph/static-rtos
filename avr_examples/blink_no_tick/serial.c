@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 /* macros */
 #define FOSC 16000000L
 

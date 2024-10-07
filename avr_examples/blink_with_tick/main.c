@@ -6,7 +6,8 @@
 #include <avr/interrupt.h>
 #include <avr/cpufunc.h>
 #include <util/delay.h>
-#include <kernel/scheduler.h>
+#include <static_rtos/kernel/scheduler.h>
+#include <stdlib.h>
 #include "serial.h"
 
 #define SET(PORT, PIN) ((PORT) = (PORT) | (1 << (PIN)))
@@ -26,7 +27,7 @@ led_on_thread(void *args)
 		PORT_END_ATOMIC();
 		SET(PORTB, PORTB5);
 		if (ksleep_for_ticks(500)) {
-			printf("sleep problem\n");
+			printf("sleep problem1\n");
 		}
 	}
 }
@@ -42,7 +43,7 @@ led_off_thread(void *args)
 		PORT_END_ATOMIC();
 		UNSET(PORTB, PORTB5);
 		if (ksleep_for_ticks(700)) {
-			printf("sleep problem\n");
+			printf("sleep problem2\n");
 		}
 	}
 }
@@ -51,7 +52,6 @@ int
 main(void)
 {
 	static struct kthread_t threads[2];
-	static uint8_t idle_thread_stack[512];
 	static uint8_t led_on_thread_stack[512];
 	static uint8_t led_off_thread_stack[512];
 
@@ -60,10 +60,6 @@ main(void)
 
 	/* initialize the led pin as output */
 	SET(DDRB, DDB5);
-
-	if (kprovide_idle_thread_stack(idle_thread_stack,
-				       sizeof(idle_thread_stack)))
-		printf("idle thread problem\n");
 
 	if (kprovide_threads_array(threads, 2))
 		printf("threads array problem\n");

@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <port/port.h>
+#include <static_rtos/port/port.h>
 
 enum kstatus_t {
 	SUSPENDED,
@@ -122,6 +122,13 @@ int kthread_unsuspend(int id);
 int kscheduler_start(void);
 
 /**
+ * Function used to determine if scheduling has started
+ *
+ * @returns 1 if the scheduler started and 0 otherwise
+ */
+int kscheduler_has_started(void);
+
+/**
  * This function is used to yield execution back to the scheduler
  *
  * @returns Returns 0 on success and 1 on failure.
@@ -157,11 +164,10 @@ int ksleep_for_ticks(uint16_t ticks_count);
 int kincrease_tickcount(void);
 
 /* TODO */
-int kernel_enable_tick_interrupt(void);
-int KERNEL_ARE_INTERRUPTS_ENABLED(void);
-int KERNEL_BEGIN_ATOMIC(void);
-int KERNEL_END_ATOMIC(void);
-int KERNEL_IS_ATOMIC(void);
+int KARE_INTERRUPTS_ENABLED(void);
+int KBEGIN_ATOMIC(void);
+int KEND_ATOMIC(void);
+int KIS_ATOMIC(void);
 
 #endif /* #ifndef STATIC_RTOS_SCHEDULER_H */
 

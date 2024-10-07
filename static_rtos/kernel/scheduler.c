@@ -3,21 +3,36 @@
  * See LICENSE.txt for details
  */
 /*
- * TODO: blocked state
- * Idea about switching context in a ISR: port dependendant
- *	-> put another return address
+ * TODO:
  *
- * How to port: port.h universal structure
+ * -> mutexes
+ * -> don't swap the context to the scheduler on every tick
  */
 #include <stdio.h>
-#include <kernel/scheduler.h>
-#include <port/port.h>
+#include <static_rtos/kernel/scheduler.h>
+#include <static_rtos/port/port.h>
+
+/* macros */
+
+#define K_ID_TO_INDEX(ID) ((ID) - 1)
+
+/* types */
+
+enum wakeup_reason_t {
+	NO_REASON,
+	SLEEP_SCHEDULED,
+	SLEEP_SCHEDULED_OVERFLOW,
+	MUTEX_SCHEDULED
+};
+
+/* function declarations */
 
 static int kmake_context_for_all_threads(void);
 static int get_next_id(void);
 static void make_0_last_run_for_priority(uint8_t priority);
 static int kswitch_to_thread_by_id(int id);
-static void idle_thread(void *args);
+
+/* global variables */
 
 static struct kthread_t *kthreads_arr; /**< The array in which information is
 					**< stored about the threads
@@ -25,14 +40,24 @@ static struct kthread_t *kthreads_arr; /**< The array in which information is
 static size_t kthreads_arr_allocated_size; /**< The allocated size of
 					    **< kthreads_arr
 					    */
-static size_t kthreads_arr_used_size; /**< The used size of kthreads_arr */
-static uint16_t ktickcount;
-static int kstarted_scheduler;
-static int kcurrent_thread_id;
+static size_t kthreads_arr_used_size; /**< The amount of threads that have been
+				       **< initialized
+				       */
+static uint16_t ktickcount; /**< The tick count that is increased from the tick
+			     **< isr (TODO: ticktype_t)
+			     */
+static int kstarted_scheduler; /**< flag used internally to determine if the
+				**< scheduler is running
+				*/
+static int kcurrent_thread_id; /**< the id of the current running thread
+				**< 0 = the idle thread, but the idle thread
+				**< isn't in kthreads_arr, so a function is
+				**< used to translate the id to a index
+				*/
+/* TODO: describe these */
 static mcu_context_t kscheduler_context;
-static mcu_context_t kidle_thread_context;
-void *kidle_thread_stack;
-size_t kidle_thread_stack_size;
+
+/* function definitions */
 
 int
 kprovide_threads_array(struct kthread_t *arr, size_t arr_size)
@@ -55,18 +80,6 @@ kprovide_threads_array(struct kthread_t *arr, size_t arr_size)
 
 	for (i = 0; i < kthreads_arr_allocated_size; i++)
 		kthreads_arr[i].status = SUSPENDED;
-
-	return 0;
-}
-
-int
-kprovide_idle_thread_stack(void *stack, size_t stack_size)
-{
-	if (!stack || !stack_size)
-		return 1;
-
-	kidle_thread_stack = stack;
-	kidle_thread_stack_size = stack_size;
 
 	return 0;
 }
@@ -116,9 +129,8 @@ kthread_suspend(int id)
 			return 1;
 	}
 
-	kthreads_arr[id - 1].status = SUSPENDED;
+	kthreads_arr[K_ID_TO_INDEX(id)].status = SUSPENDED;
 
-	/* if not in atomic block (TODO) */
 	if (id == kcurrent_thread_id && !PORT_IS_ATOMIC())
 		return kyield();
 
@@ -131,16 +143,15 @@ kthread_unsuspend(int id)
 	if (id <= 0 || (size_t)id > kthreads_arr_used_size)
 		return 1;
 	
-	kthreads_arr[id - 1].status = READY;
-	if (kthreads_arr[id - 1].priority >
-	    kthreads_arr[kcurrent_thread_id].priority &&
+	kthreads_arr[K_ID_TO_INDEX(id)].status = READY;
+	if (kthreads_arr[K_ID_TO_INDEX(id)].priority >
+	    kthreads_arr[K_ID_TO_INDEX(kcurrent_thread_id)].priority &&
 	    !PORT_IS_ATOMIC())
 		kyield();
 
 	return 0;
 }
 
-/* TODO */
 int
 kscheduler_start(void)
 {
@@ -152,18 +163,9 @@ kscheduler_start(void)
 
 	/* make the scheduler context and the context for all of the threads */
 	port_getcontext(&kscheduler_context);
-	port_getcontext(&kidle_thread_context);
-	port_makecontext(&kidle_thread_context, kidle_thread_stack,
-			 kidle_thread_stack_size, &kscheduler_context,
-			 idle_thread, NULL);
 	if (kmake_context_for_all_threads())
 		return 1;
-	
-	/* disable interrupts inside of the scheduler. not doing this will
-	 * cause the timer interrupt to save the scheduler context in the wrong
-	 * place and make it run out of memory causing a reset
-	 */
-	PORT_DISABLE_INTERRUPTS();
+
 	kstarted_scheduler = 1;
 	while (1) {
 		i = get_next_id();
@@ -176,23 +178,23 @@ kscheduler_start(void)
 	}
 }
 
+int
+kscheduler_has_started(void)
+{
+	return kstarted_scheduler;
+}
+
 /* TODO: critical blocks */
 int
 kyield(void)
 {
-	/* or kis_critical */
+	/* this function can also be used to yield from a isr or when interrupts
+	 * are disabled
+	 */
 	if (!kstarted_scheduler || kcurrent_thread_id < 0)
 		return 1;
-	if (kcurrent_thread_id == 0) {
-		return port_swapcontext(&kidle_thread_context,
-					&kscheduler_context);
-	} else {
-		return port_swapcontext(
-				&kthreads_arr[kcurrent_thread_id - 1].context,
-				&kscheduler_context
-				       );
-	}
-	return 0;
+	
+	return kswitch_to_thread_by_id(0);
 }
 
 int
@@ -211,7 +213,7 @@ ksleep_for_ticks(uint16_t ticks_count)
 	id = kcurrent_thread_id;
 	if (id <= 0)
 		return 1;
-	
+
 	/* Interrupts disabled inside of this function so the tick won't
 	 * increase unexpectendly. I don't really know why, but not disabling
 	 * interrupts caused boot looping
@@ -220,19 +222,19 @@ ksleep_for_ticks(uint16_t ticks_count)
 	if (interrupts)
 		PORT_DISABLE_INTERRUPTS();
 	
-#if 0
-	TODO
-	if (UINT16_MAX - 
-#endif
-
-	kthreads_arr[id - 1].wake_scheduled = 1;
-	kthreads_arr[id - 1].wake_up_at = ktickcount + ticks_count;
+	if (UINT16_MAX - ktickcount < ticks_count) {
+		kthreads_arr[K_ID_TO_INDEX(id)].wake_scheduled = SLEEP_SCHEDULED_OVERFLOW;
+		kthreads_arr[K_ID_TO_INDEX(id)].wake_up_at = ktickcount + ticks_count;
+	} else {
+		kthreads_arr[K_ID_TO_INDEX(id)].wake_scheduled = SLEEP_SCHEDULED;
+		kthreads_arr[K_ID_TO_INDEX(id)].wake_up_at = ktickcount + ticks_count;
+	}
 
 	/* using this instead of suspend */
-	kthreads_arr[id - 1].status = SUSPENDED; /* TODO: blocked, waiting */
+	kthreads_arr[K_ID_TO_INDEX(id)].status = SUSPENDED;
 	ret = kyield();
 
-	kthreads_arr[id - 1].wake_scheduled = 0;
+	kthreads_arr[K_ID_TO_INDEX(id)].wake_scheduled = 0;
 
 	if (interrupts)
 		PORT_ENABLE_INTERRUPTS();
@@ -252,10 +254,11 @@ kincrease_tickcount(void)
 	ktickcount++;
 	
 	if (ktickcount == 0) {
-			for (i = 0; i < kthreads_arr_used_size; i++) {
-				if (kthreads_arr[i].wake_scheduled != 2)
-					continue;
-			kthreads_arr[i].wake_scheduled = 1;
+		for (i = 0; i < kthreads_arr_used_size; i++) {
+			if (kthreads_arr[i].wake_scheduled !=
+			    SLEEP_SCHEDULED_OVERFLOW)
+				continue;
+			kthreads_arr[i].wake_scheduled = SLEEP_SCHEDULED;
 		}
 	}
 
@@ -264,13 +267,47 @@ kincrease_tickcount(void)
 		if (kthreads_arr[i].wake_scheduled != 1)
 			continue;
 		if (kthreads_arr[i].wake_up_at <= ktickcount) {
+			kthreads_arr[i].wake_scheduled = 0;
 			kthread_unsuspend(kthreads_arr[i].id);
+			/* TODO: check if the priority is higher or equal */
 			ret = 1;
 		}
 	}
 
+	/* TODO: check for mutexes */
+
 	return ret;
 }
+
+#if 0
+int
+kenable_tick_interrupt(void)
+{
+	PORT_ENABLE_INTERRUPTS();
+}
+
+int
+KARE_INTERRUPTS_ENABLED(void)
+{
+	return PORT_ARE_INTERRUPTS_ENABLED();
+}
+
+int
+KBEGIN_ATOMIC(void)
+{
+}
+
+int
+KEND_ATOMIC(void)
+{
+}
+
+int
+KIS_ATOMIC(void)
+{
+	return PORT_IS_ATOMIC();
+}
+#endif
 
 /**
  * This is a internal function used to make the context of all threads.
@@ -354,20 +391,34 @@ get_next_id(void)
 static int
 kswitch_to_thread_by_id(int id)
 {
+	int old_id;
+	mcu_context_t *old_context, *new_context;
+
 	if (id < 0)
 		return 1;
+
+	old_id = kcurrent_thread_id;
 	kcurrent_thread_id = id;
-	if (id == 0) {
-		return port_swapcontext(&kscheduler_context,
-					&kidle_thread_context);
-	} else {
-		make_0_last_run_for_priority(kthreads_arr[id - 1].priority);
-		kthreads_arr[id - 1].last_run = 1;
-		return port_swapcontext(&kscheduler_context,
-					&kthreads_arr[id - 1].context);
+
+	if (old_id == kcurrent_thread_id)
+		return 0;
+	
+	if (old_id == 0)
+		old_context = &kscheduler_context;
+	else
+		old_context = &kthreads_arr[K_ID_TO_INDEX(old_id)].context;
+
+	if (id == 0)
+		new_context = &kscheduler_context;
+	else
+		new_context = &kthreads_arr[K_ID_TO_INDEX(id)].context;
+
+	if (id) {
+		make_0_last_run_for_priority(kthreads_arr[K_ID_TO_INDEX(id)].priority);
+		kthreads_arr[K_ID_TO_INDEX(id)].last_run = 1;
 	}
 
-	return 1;
+	return port_swapcontext(old_context, new_context);
 }
 
 /**
@@ -384,22 +435,4 @@ make_0_last_run_for_priority(uint8_t priority)
 		if (kthreads_arr[i].priority == priority)
 			kthreads_arr[i].last_run = 0;
 }
-
-/**
- * This is the thread that is executed whenever there is no other active thread
- */
-static void
-idle_thread(void *args)
-{
-	(void)args;
-
-	/* might have to remove this */
-	PORT_ENABLE_INTERRUPTS();
-	while (1) {
-	}
-}
-
-/* Timer interrupts is port defined */
-
-#include "port_timer.h"
 

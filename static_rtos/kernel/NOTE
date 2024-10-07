@@ -1,0 +1,14 @@
+arm cortex-m3 systick interrupt:
+
+kincrease_tickcount();
+
+if (other thread has higher priority) {
+	pendsv();
+}
+
+pendsv interrupt handler (some registers automatically saved):
+
+save unsaved registers unto stack
+put the new stack head into the mcu_context_t variable
+
+

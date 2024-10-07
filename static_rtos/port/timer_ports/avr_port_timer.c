@@ -2,8 +2,10 @@
  * Copyright 2024 Timothy Joseph. Subject to MIT license
  * See LICENSE.txt for details
  */
-#ifndef AVR_PORT_TIMER_H
-#define AVR_PORT_TIMER_H
+#include <stdio.h>
+
+#include <static_rtos/kernel/scheduler.h>
+#include <static_rtos/port/ports/avr_port.h>
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -12,12 +14,10 @@ ISR(TIMER1_OVF_vect)
 {
 	TCNT1 = TCNT1_1MS;
 
-	if (!kstarted_scheduler)
+	if (!kscheduler_has_started())
 		return;
 	
-	kincrease_tickcount();
-	kyield();
+	if (kincrease_tickcount())
+		kyield();
 }
-
-#endif
 

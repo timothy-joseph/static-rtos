@@ -1,0 +1,9 @@
+1. nicer way to specify port: global define as compiler argument and then make
+   the user specify the needed .c files for their port inorder to avoid putting
+   executable code into .h files
+2. mutexes
+3. queues
+4. arm cortex-m3 port
+
+Would be nice to have all of these done by the start of october
+

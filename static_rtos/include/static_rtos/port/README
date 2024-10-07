@@ -54,10 +54,8 @@ on the current platform)
 The tick isr
 
 Ports must define in their port source code a appropriate isr that must contain
-the following steps (c pseudocode). This definition will be found in a header
-file (src/kernel/port_timer.h; src/kernel/avr_port_timer.h) which is included into
-the file scheduler.c at the end so that the isr will have access to the
-global variables defined inside of scheduler.c
+the following steps (c pseudocode). This definition will be found in a source
+file (static_rtos/port/timer_ports/my_mcu_port_timer.c)
 
 ```c
 void
@@ -66,7 +64,7 @@ tick_isr(void)
 	reset_timer();
 	
 	if (kincrease_tickcount()) {
-		yield_to_scheduler
+		yield_to_scheduler /* kyield() */
 	}
 }
 ```

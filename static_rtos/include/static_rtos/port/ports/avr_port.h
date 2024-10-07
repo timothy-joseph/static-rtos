@@ -418,8 +418,5 @@ work.
 
 #include <avr/interrupt.h>
 
-#define PORT_DISABLE_INTERRUPTS cli
-#define PORT_ENABLE_INTERRUPTS sei
-
 #endif /* AVRCONTEXT_H */
 

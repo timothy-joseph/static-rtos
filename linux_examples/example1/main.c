@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
-#include <kernel/scheduler.h>
+#include <static_rtos/kernel/scheduler.h>
 
 void thread1(void *args);
 void thread2(void *args);

@@ -44,7 +44,7 @@ In general, you should include it only once across the project.
 #include <stdio.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <port/port.h>
+#include <static_rtos/port/port.h>
 
 #ifdef __AVR__
 
@@ -107,7 +107,7 @@ int port_makecontext(mcu_context_t *cp, void *stackp, const size_t stack_size, c
     uint8_t *p = (uint8_t *)&addr;
     /* initialise stack pointer and program counter */
     cp->sp.ptr = ((uint8_t *)stackp + stack_size - 1);
-    cp->pc.ptr = port_makecontext_callfunc;
+    cp->pc.ptr = (void *)port_makecontext_callfunc;
     /* initialise registers to pass arguments to port_makecontext_callfunc */
     /* successor: registers 24,25; func registers 23, 22; funcarg: 21, 20. */
     addr = (uint16_t)successor_cp;
@@ -170,6 +170,19 @@ port_enable_tick_interrupt(void)
 	return 0;
 }
 
+int
+PORT_ENABLE_INTERRUPTS(void)
+{
+	sei();
+	return 0;
+}
+
+int
+PORT_DISABLE_INTERRUPTS(void)
+{
+	cli();
+	return 0;
+}
 
 int
 PORT_ARE_INTERRUPTS_ENABLED(void)
@@ -177,41 +190,5 @@ PORT_ARE_INTERRUPTS_ENABLED(void)
 	return !!(SREG & 0x80);
 }
 
-int
-PORT_BEGIN_ATOMIC(void)
-{
-	int interrupts;
-	if (nested_atomic == 0xff)
-		return 1;
-	
-	interrupts = PORT_ARE_INTERRUPTS_ENABLED();
-	if (nested_atomic == 0 && interrupts)
-		PORT_DISABLE_INTERRUPTS();
-	were_interrupts_enabled = interrupts;
-	nested_atomic++;
-	
-	return 0;
-}
+#include "avr_libopencm3_common.h"
 
-int
-PORT_END_ATOMIC(void)
-{
-	int interrupts;
-	if (nested_atomic == 0x0)
-		return 1;
-	
-	interrupts = were_interrupts_enabled;
-	nested_atomic--;
-	if (nested_atomic == 0 && interrupts) {
-		were_interrupts_enabled = 0;
-		PORT_ENABLE_INTERRUPTS();
-	}
-	
-	return 0;
-}
-
-int
-PORT_IS_ATOMIC(void)
-{
-	return !!nested_atomic;
-}

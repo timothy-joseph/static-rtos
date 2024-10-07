@@ -5,7 +5,7 @@
 #include <avr/interrupt.h>
 #include <avr/cpufunc.h>
 #include <util/delay.h>
-#include <kernel/scheduler.h>
+#include <static_rtos/kernel/scheduler.h>
 #include "serial.h"
 
 #define SET(PORT, PIN) ((PORT) = (PORT) | (1 << (PIN)))
